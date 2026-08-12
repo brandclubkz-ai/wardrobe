@@ -139,7 +139,7 @@ h2.serif{font-size:20px;font-weight:600;margin-bottom:4px}
       </div>
       <button class="btn-main" id="buildAvatar">Построить по росту/весу</button>
       <button class="btn-ghost" id="buildAvatarVoxel" style="margin-top:8px">Построить по силуэту фото (эксперимент)</button>
-      <p class="hint" id="voxelHint">Нужны все 4 фото. Снимайте в полный рост на ровном однотонном фоне (стена, штора) — метод вычитает фон, и чем контрастнее фон к одежде, тем чище результат. Итог будет угловатым, «вокселным» — это честная геометрия по вашим фото, не сглаженная 3D-модель.</p>
+      <p class="hint" id="voxelHint">Нужны все 4 фото. Снимайте в полный рост на ровном однотонном фоне (стена, штора) — метод вычитает фон, и чем контрастнее фон к одежде, тем чище результат. Тело строится сеткой колец по высоте (как срезы), сшитых в сплошную поверхность — метод честно не различает две ноги по отдельности, они выйдут одной колонной, зато без швов и дыр.</p>
       <div class="hint" id="voxelStatus" style="display:none"></div>
       <div class="mask-grid" id="maskPreview" style="display:none"></div>
     </div>
@@ -440,7 +440,7 @@ function sampleReal(view, worldHoriz, worldVertFromTop){
 
 async function buildVoxelMannequin(heightCm, weightKg, photos){
   $('voxelStatus').style.display='block';
-  $('voxelStatus').textContent='Убираем фон и строим объём — секунду…';
+  $('voxelStatus').textContent='Убираем фон и строим сетку — секунду…';
 
   const MW=100, MH=200; // разрешение масок
   const [front, back, left, right] = await Promise.all(
@@ -456,46 +456,85 @@ async function buildVoxelMannequin(heightCm, weightKg, photos){
   const M=bodyMetrics(heightCm, weightKg);
   initSceneAndAnchors(M);
 
-  // сетка вокселей с запасом по ширине/глубине — реальные пропорции определит калибровка по фото,
-  // а не растягивание рамки под предполагаемый размер (это и было причиной прошлых кривых фигур)
-  const bboxH=heightCm/100, bboxW=0.68, bboxD=0.46;
-  const gridX=26, gridY=50, gridZ=18;
-  const voxW=bboxW/gridX, voxH=bboxH/gridY, voxD=bboxD/gridZ;
+  function hitsAt(wx,wz,wyFromTop){
+    return (sampleReal(front,wx,wyFromTop)?1:0) + (sampleReal(back,-wx,wyFromTop)?1:0)
+         + (sampleReal(left,wz,wyFromTop)?1:0) + (sampleReal(right,-wz,wyFromTop)?1:0);
+  }
 
-  const positions=[];
-  for(let iy=0; iy<gridY; iy++){
-    const wyFromTop=(iy+0.5)*voxH;
-    for(let ix=0; ix<gridX; ix++){
-      const wx=-bboxW/2+(ix+0.5)*voxW;
-      for(let iz=0; iz<gridZ; iz++){
-        const wz=-bboxD/2+(iz+0.5)*voxD;
-        const hits=[
-          sampleReal(front, wx, wyFromTop),
-          sampleReal(back, -wx, wyFromTop),
-          sampleReal(left, wz, wyFromTop),
-          sampleReal(right, -wz, wyFromTop)
-        ].reduce((n,b)=>n+(b?1:0),0);
-        if(hits>=3){ // засчитываем, если совпало минимум на 3 фото из 4 — терпимо к одному кривому силуэту
-          positions.push([wx, bboxH-wyFromTop, wz]);
-        }
+  // сетка накладывается на фото с 4 сторон по росту: для каждой высоты пускаем лучи по кругу
+  // от центра и ищем, где кончается тело (пересечение силуэтов на всех ракурсах) — точки на
+  // соседних кольцах затем сшиваются в сплошную сетку (это даёт связную поверхность вместо
+  // отдельных кубиков и убирает шов посередине)
+  const bboxH=heightCm/100;
+  const numRings=44, numAngles=28, maxR=0.35, rStep=0.01;
+  const rings=[];
+  for(let iy=0; iy<numRings; iy++){
+    const wyFromTop=(iy+0.5)*(bboxH/numRings);
+    const radii=[];
+    for(let j=0; j<numAngles; j++){
+      const theta=j/numAngles*2*Math.PI;
+      const dx=Math.cos(theta), dz=Math.sin(theta);
+      let r=rStep, last=0;
+      while(r<=maxR){
+        if(hitsAt(dx*r, dz*r, wyFromTop)>=3){ last=r; r+=rStep; }
+        else break;
       }
+      radii.push(last);
+    }
+    rings.push(radii);
+  }
+  // медианное сглаживание по вертикали (по каждому углу отдельно) — гасит редкие
+  // выбросы (например, от тени на полу), не размывая настоящую форму тела
+  const smooth=rings.map(r=>r.slice());
+  for(let j=0;j<numAngles;j++){
+    const col=rings.map(r=>r[j]);
+    for(let iy=0; iy<numRings; iy++){
+      const lo=Math.max(0,iy-2), hi=Math.min(numRings,iy+3);
+      const win=col.slice(lo,hi).sort((a,b)=>a-b);
+      smooth[iy][j]=win[Math.floor(win.length/2)];
     }
   }
 
-  if(!positions.length){
+  // обрезаем пустой хвост колец ниже реальных стоп (где почти все лучи дали 0)
+  let lastRing=numRings-1;
+  while(lastRing>0){
+    const avg=smooth[lastRing].reduce((a,b)=>a+b,0)/numAngles;
+    if(avg>0.02) break;
+    lastRing--;
+  }
+  const usedRings=lastRing+1;
+  if(usedRings<3){
     $('voxelStatus').textContent='Не удалось выделить силуэт ни на одном фото — попробуйте более контрастный однотонный фон и полный рост в кадре.';
     return false;
   }
 
-  const geo=new THREE.BoxGeometry(voxW*1.08, voxH*1.08, voxD*1.08);
-  const mat=new THREE.MeshStandardMaterial({color:0xE8C9A8, roughness:0.85});
-  const inst=new THREE.InstancedMesh(geo, mat, positions.length);
-  const m=new THREE.Matrix4();
-  positions.forEach((p,i)=>{ m.setPosition(p[0],p[1],p[2]); inst.setMatrixAt(i,m); });
-  inst.instanceMatrix.needsUpdate=true;
-  mannequinGroup.add(inst);
+  const positions=[], normals=[], indices=[];
+  for(let iy=0; iy<usedRings; iy++){
+    const y=bboxH-(iy+0.5)*(bboxH/numRings);
+    for(let j=0;j<numAngles;j++){
+      const theta=j/numAngles*2*Math.PI;
+      const r=smooth[iy][j];
+      positions.push(r*Math.cos(theta), y, r*Math.sin(theta));
+      normals.push(Math.cos(theta),0,Math.sin(theta));
+    }
+  }
+  for(let iy=0; iy<usedRings-1; iy++){
+    for(let j=0;j<numAngles;j++){
+      const j2=(j+1)%numAngles;
+      const a=iy*numAngles+j, b=iy*numAngles+j2, c=(iy+1)*numAngles+j, d=(iy+1)*numAngles+j2;
+      indices.push(a,c,b, b,c,d);
+    }
+  }
 
-  $('voxelStatus').textContent='Готово — '+positions.length+' вокселей по вашим 4 фото.';
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat=new THREE.MeshStandardMaterial({color:0xE8C9A8, roughness:0.85, side:THREE.DoubleSide});
+  const mesh=new THREE.Mesh(geo, mat);
+  mannequinGroup.add(mesh);
+
+  $('voxelStatus').textContent='Готово — сетка построена по вашим 4 фото. Учтите: у метода одно «кольцо» на высоту, поэтому ноги показаны одной колонной, а не раздельно.';
   return true;
 }
 
