@@ -396,11 +396,11 @@ function extractSilhouette(dataUrl, w, h){
         for(let x=0;x<w;x++){ if(mask[y*w+x]===1){ if(mn<0) mn=x; mx=x; cnt++; } }
         if(cnt>=3){ rowMin.push(mn); rowMax.push(mx); if(firstY<0) firstY=y; lastY=y; }
       }
-      let bbox={minX:0,maxX:1,minY:0,maxY:1};
+      let bbox={minX:0,maxX:w,minY:0,maxY:h};
       if(rowMin.length){
         const sMin=[...rowMin].sort((a,b)=>a-b), sMax=[...rowMax].sort((a,b)=>a-b);
         const pct=(arr,p)=>arr[Math.min(arr.length-1,Math.max(0,Math.floor(p*arr.length)))];
-        bbox={ minX:pct(sMin,0.10)/w, maxX:pct(sMax,0.90)/w, minY:(firstY<0?0:firstY)/h, maxY:(lastY<0?h:lastY)/h };
+        bbox={ minX:pct(sMin,0.10), maxX:pct(sMax,0.90), minY:(firstY<0?0:firstY), maxY:(lastY<0?h:lastY) };
       }
       resolve({mask, w, h, bbox});
     };
@@ -420,7 +420,24 @@ function maskToDataUrl(view){
   return c.toDataURL();
 }
 
-/* ---------- вокселирование по 4 силуэтам ---------- */
+/* ---------- вокселирование по 4 силуэтам (с калибровкой масштаба по росту) ---------- */
+function calibrateView(view, heightCm){
+  const pixelH=Math.max(1, view.bbox.maxY-view.bbox.minY);
+  return {
+    metersPerPixel:(heightCm/100)/pixelH,
+    centerX:(view.bbox.minX+view.bbox.maxX)/2,
+    topY:view.bbox.minY
+  };
+}
+function sampleReal(view, worldHoriz, worldVertFromTop){
+  const c=view.cal;
+  const px=c.centerX + worldHoriz/c.metersPerPixel;
+  const py=c.topY + worldVertFromTop/c.metersPerPixel;
+  const x=Math.round(px), y=Math.round(py);
+  if(x<0||y<0||x>=view.w||y>=view.h) return false;
+  return view.mask[y*view.w+x]===1;
+}
+
 async function buildVoxelMannequin(heightCm, weightKg, photos){
   $('voxelStatus').style.display='block';
   $('voxelStatus').textContent='Убираем фон и строим объём — секунду…';
@@ -429,6 +446,7 @@ async function buildVoxelMannequin(heightCm, weightKg, photos){
   const [front, back, left, right] = await Promise.all(
     [photos.front, photos.back, photos.left, photos.right].map(p=>extractSilhouette(p, MW, MH))
   );
+  [front,back,left,right].forEach(v=> v.cal=calibrateView(v, heightCm));
 
   $('maskPreview').style.display='grid';
   $('maskPreview').innerHTML = [
@@ -436,38 +454,29 @@ async function buildVoxelMannequin(heightCm, weightKg, photos){
   ].map(([lbl,v])=>`<div><img src="${maskToDataUrl(v)}"><div class="mask-lbl">${lbl}</div></div>`).join('');
 
   const M=bodyMetrics(heightCm, weightKg);
-  const totalH=initSceneAndAnchors(M);
+  initSceneAndAnchors(M);
 
-  const bboxW=0.30*2*M.width, bboxD=0.20*2*M.width, bboxH=totalH;
-  const gridX=22, gridY=46, gridZ=16;
+  // сетка вокселей с запасом по ширине/глубине — реальные пропорции определит калибровка по фото,
+  // а не растягивание рамки под предполагаемый размер (это и было причиной прошлых кривых фигур)
+  const bboxH=heightCm/100, bboxW=0.68, bboxD=0.46;
+  const gridX=26, gridY=50, gridZ=18;
   const voxW=bboxW/gridX, voxH=bboxH/gridY, voxD=bboxD/gridZ;
 
-  function sample(view, u, v){
-    if(u<0||u>1||v<0||v>1) return false;
-    const b=view.bbox;
-    const su=b.minX+u*(b.maxX-b.minX);
-    const sv=b.minY+v*(b.maxY-b.minY);
-    const x=Math.min(view.w-1, Math.max(0, Math.floor(su*view.w)));
-    const y=Math.min(view.h-1, Math.max(0, Math.floor(sv*view.h)));
-    return view.mask[y*view.w+x]===1;
-  }
-
   const positions=[];
-  for(let ix=0; ix<gridX; ix++){
-    const wx=-bboxW/2+(ix+0.5)*voxW;
-    const uFront=(wx+bboxW/2)/bboxW;
-    const uBack=1-uFront;
-    for(let iz=0; iz<gridZ; iz++){
-      const wz=-bboxD/2+(iz+0.5)*voxD;
-      const uLeft=(wz+bboxD/2)/bboxD;
-      const uRight=1-uLeft;
-      for(let iy=0; iy<gridY; iy++){
-        const wy=(iy+0.5)*voxH;
-        const v=1-(wy/bboxH);
-        const hits=[sample(front,uFront,v), sample(back,uBack,v), sample(left,uLeft,v), sample(right,uRight,v)]
-          .reduce((n,b)=>n+(b?1:0),0);
+  for(let iy=0; iy<gridY; iy++){
+    const wyFromTop=(iy+0.5)*voxH;
+    for(let ix=0; ix<gridX; ix++){
+      const wx=-bboxW/2+(ix+0.5)*voxW;
+      for(let iz=0; iz<gridZ; iz++){
+        const wz=-bboxD/2+(iz+0.5)*voxD;
+        const hits=[
+          sampleReal(front, wx, wyFromTop),
+          sampleReal(back, -wx, wyFromTop),
+          sampleReal(left, wz, wyFromTop),
+          sampleReal(right, -wz, wyFromTop)
+        ].reduce((n,b)=>n+(b?1:0),0);
         if(hits>=3){ // засчитываем, если совпало минимум на 3 фото из 4 — терпимо к одному кривому силуэту
-          positions.push([wx,wy,wz]);
+          positions.push([wx, bboxH-wyFromTop, wz]);
         }
       }
     }
