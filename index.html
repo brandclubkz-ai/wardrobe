@@ -350,7 +350,7 @@ function buildMannequin(heightCm, weightKg){
 function extractSilhouette(dataUrl, w, h){
   return new Promise(resolve=>{
     const img=new Image();
-    img.onload=()=>{
+    const proceed=()=>{
       const c=document.createElement('canvas'); c.width=w; c.height=h;
       const ctx=c.getContext('2d');
       // вписываем фото целиком в кадр (letterbox), не обрезаем бока
@@ -403,6 +403,10 @@ function extractSilhouette(dataUrl, w, h){
         bbox={ minX:pct(sMin,0.10), maxX:pct(sMax,0.90), minY:(firstY<0?0:firstY), maxY:(lastY<0?h:lastY) };
       }
       resolve({mask, w, h, bbox});
+    };
+    img.onload=()=>{
+      if(img.decode){ img.decode().then(proceed).catch(proceed); }
+      else { proceed(); }
     };
     img.src=dataUrl;
   });
@@ -534,7 +538,20 @@ async function buildVoxelMannequin(heightCm, weightKg, photos){
   const mesh=new THREE.Mesh(geo, mat);
   mannequinGroup.add(mesh);
 
-  $('voxelStatus').textContent='Готово — сетка построена по вашим 4 фото. Учтите: у метода одно «кольцо» на высоту, поэтому ноги показаны одной колонной, а не раздельно.';
+  // камера подгоняется под РЕАЛЬНЫЕ габариты построенной сетки, а не под приблизительную
+  // оценку по росту/весу — раньше несовпадение этих двух оценок могло давать мелкую фигуру не по центру
+  geo.computeBoundingBox();
+  const bb=geo.boundingBox, bcenter=new THREE.Vector3(); bb.getCenter(bcenter);
+  const bsize=new THREE.Vector3(); bb.getSize(bsize);
+  const fitH=Math.max(bsize.y, 0.4);
+  camera.position.set(bcenter.x, bcenter.y+fitH*0.05, bcenter.z+fitH*1.9);
+  controls.target.copy(bcenter);
+  controls.minDistance=fitH*0.6; controls.maxDistance=fitH*4;
+  controls.update();
+
+  const firstAvg=(smooth[0].reduce((a,b)=>a+b,0)/numAngles*100).toFixed(0);
+  const lastAvg=(smooth[usedRings-1].reduce((a,b)=>a+b,0)/numAngles*100).toFixed(0);
+  $('voxelStatus').textContent=`Готово — сетка построена по вашим 4 фото (${usedRings}/${numRings} колец, верх ~${firstAvg} см, низ ~${lastAvg} см). Учтите: у метода одно «кольцо» на высоту, поэтому ноги показаны одной колонной, а не раздельно.`;
   return true;
 }
 
