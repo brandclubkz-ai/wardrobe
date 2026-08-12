@@ -1,0 +1,9 @@
+{
+  "name": "Гардероб 3D",
+  "short_name": "Гардероб3D",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F3EFE7",
+  "theme_color": "#211E1C",
+  "icons": []
+}

@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#211E1C">
+<link rel="manifest" href="manifest.json">
+<title>Гардероб 3D</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+:root{
+  --linen:#F3EFE7;
+  --card:#FFFFFF;
+  --ink:#211E1C;
+  --muted:#7A7368;
+  --line:#E2DCCE;
+  --teal:#2C6E6B;
+  --teal-soft:#DCEAE9;
+  --blush:#C97C86;
+  --blush-soft:#F6E4E6;
+  --brass:#A8863C;
+  --brass-soft:#F1E7D2;
+  --danger:#B3402C;
+  --r:16px;
+}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html{height:100%}
+body{
+  height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;
+  font-family:'Inter',-apple-system,sans-serif;background:var(--linen);color:var(--ink);
+}
+.serif{font-family:'Fraunces',serif}
+.mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+
+header.top{
+  flex:0 0 auto;background:var(--ink);color:#fff;
+  padding:calc(10px + env(safe-area-inset-top)) 18px 10px;
+  display:flex;align-items:center;gap:9px;
+}
+header.top .dot{width:8px;height:8px;border-radius:50%;background:var(--blush)}
+header.top h1{font-size:16px;font-weight:600;letter-spacing:.2px}
+
+.screens{flex:1 1 auto;min-height:0;position:relative}
+.screen{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none}
+.screen.on{display:block}
+
+nav.tabbar{
+  flex:0 0 auto;background:var(--card);border-top:1px solid var(--line);display:flex;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+nav.tabbar button{
+  flex:1;border:0;background:none;padding:9px 4px 8px;display:flex;flex-direction:column;
+  align-items:center;gap:3px;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;
+}
+nav.tabbar button .ic{font-size:19px;line-height:1}
+nav.tabbar button.on{color:var(--teal)}
+
+main{padding:16px 16px 24px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.card + .card{margin-top:10px}
+.eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+h2.serif{font-size:20px;font-weight:600;margin-bottom:4px}
+.lede{font-size:13.5px;color:var(--muted);line-height:1.5;margin-bottom:14px}
+
+.f{margin-bottom:12px}
+.f label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:5px}
+.f input,.f select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:15px;background:#fff}
+.row{display:flex;gap:10px}.row .f{flex:1}
+.btn-main{width:100%;padding:13px;border:0;border-radius:10px;background:var(--ink);color:#fff;
+  font-weight:600;font-size:15px;cursor:pointer}
+.btn-ghost{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);
+  font-weight:600;font-size:14px;cursor:pointer}
+.btn-sm{padding:7px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12.5px;
+  font-weight:600;cursor:pointer;color:var(--ink)}
+.hint{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.5}
+
+.photo-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.photo-slot{aspect-ratio:3/4;border:1.5px dashed var(--line);border-radius:10px;position:relative;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff;cursor:pointer}
+.photo-slot img{width:100%;height:100%;object-fit:cover}
+.photo-slot .lbl{font-size:10.5px;color:var(--muted);font-weight:600;text-align:center;padding:4px}
+.photo-slot input{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+#avatarWrap{position:relative;width:100%;aspect-ratio:3/4;background:var(--teal-soft);border-radius:14px;overflow:hidden;margin-bottom:6px}
+#avatarWrap canvas{width:100% !important;height:100% !important;display:block}
+.avatar-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--muted);font-size:13px;text-align:center;padding:20px}
+.rotate-hint{text-align:center;font-size:12px;color:var(--muted);margin-bottom:14px}
+
+.wardrobe-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.item-tile{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;position:relative;cursor:pointer}
+.item-tile img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+.item-tile .nm{font-size:11.5px;font-weight:600;padding:6px 7px 2px}
+.item-tile .cat{font-size:10px;color:var(--muted);padding:0 7px 7px}
+.item-tile .del{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;
+  background:rgba(33,30,28,.65);color:#fff;border:0;font-size:13px;line-height:1;cursor:pointer}
+.item-tile.worn{outline:2px solid var(--teal)}
+
+.tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.tag{background:var(--blush-soft);color:#7A3E46;font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px;
+  display:flex;align-items:center;gap:6px}
+.tag button{border:0;background:none;color:#7A3E46;font-size:13px;cursor:pointer;line-height:1;padding:0}
+.mat-row{display:flex;gap:8px;margin-bottom:10px}
+.mat-row input{flex:1}
+.mat-row input.pct{max-width:70px}
+
+.tryon-rail{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px}
+.tryon-rail .item-tile{flex:0 0 84px}
+.empty{color:var(--muted);font-size:13.5px;text-align:center;padding:24px 10px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <span class="dot"></span><h1 class="serif">Гардероб 3D</h1>
+</header>
+
+<div class="screens">
+
+<section class="screen on" id="scrAvatar">
+  <main>
+    <div class="card">
+      <div class="eyebrow">Шаг 1</div>
+      <h2 class="serif">Ваша фигура</h2>
+      <p class="lede">Рост и вес определяют пропорции манекена. Фото пока служат только справочными миниатюрами — точная 3D-реконструкция тела по фото это отдельный, более сложный этап (см. подсказку внизу).</p>
+      <div class="row">
+        <div class="f"><label>Рост, см</label><input id="inHeight" type="number" inputmode="numeric" placeholder="170" min="120" max="220"></div>
+        <div class="f"><label>Вес, кг</label><input id="inWeight" type="number" inputmode="numeric" placeholder="65" min="30" max="200"></div>
+      </div>
+      <div class="photo-row">
+        <label class="photo-slot" data-slot="front"><span class="lbl">спереди</span><input type="file" accept="image/*" data-slot="front"></label>
+        <label class="photo-slot" data-slot="back"><span class="lbl">сзади</span><input type="file" accept="image/*" data-slot="back"></label>
+        <label class="photo-slot" data-slot="left"><span class="lbl">слева</span><input type="file" accept="image/*" data-slot="left"></label>
+        <label class="photo-slot" data-slot="right"><span class="lbl">справа</span><input type="file" accept="image/*" data-slot="right"></label>
+      </div>
+      <button class="btn-main" id="buildAvatar">Построить по росту/весу</button>
+      <button class="btn-ghost" id="buildAvatarVoxel" style="margin-top:8px">Построить по силуэту фото (эксперимент)</button>
+      <p class="hint" id="voxelHint">Нужны все 4 фото. Снимайте в полный рост на ровном однотонном фоне (стена, штора) — метод вычитает фон, и чем контрастнее фон к одежде, тем чище результат. Итог будет угловатым, «вокселным» — это честная геометрия по вашим фото, не сглаженная 3D-модель.</p>
+      <div class="hint" id="voxelStatus" style="display:none"></div>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <div id="avatarWrap"><div class="avatar-empty">Заполните рост и вес и нажмите «Построить манекен»</div></div>
+      <div class="rotate-hint">Потяните пальцем/мышью — манекен вращается</div>
+    </div>
+  </main>
+</section>
+
+<section class="screen" id="scrWardrobe">
+  <main>
+    <div class="card">
+      <div class="eyebrow">Шаг 2</div>
+      <h2 class="serif">Добавить вещь</h2>
+      <label class="photo-slot" id="itemPhotoSlot" style="aspect-ratio:16/10;margin-bottom:12px">
+        <span class="lbl">Фото вещи</span><input type="file" accept="image/*" id="itemPhotoInput">
+      </label>
+      <div class="f"><label>Название</label><input id="itemName" placeholder="Например, белая рубашка"></div>
+      <div class="f"><label>Категория</label>
+        <select id="itemCat">
+          <option value="top">Верх</option>
+          <option value="bottom">Низ</option>
+          <option value="dress">Платье</option>
+          <option value="outerwear">Верхняя одежда</option>
+          <option value="shoes">Обувь</option>
+        </select>
+      </div>
+      <div class="f">
+        <label>Состав ткани</label>
+        <div class="mat-row">
+          <input id="matName" placeholder="Материал, напр. хлопок">
+          <input id="matPct" class="pct" type="number" placeholder="%" min="1" max="100">
+          <button class="btn-sm" id="matAdd">+</button>
+        </div>
+        <div class="tag-row" id="matTags"></div>
+      </div>
+      <button class="btn-main" id="itemSave">Сохранить в гардероб</button>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <div class="eyebrow">Ваш гардероб</div>
+      <div class="wardrobe-grid" id="wardrobeGrid"></div>
+    </div>
+  </main>
+</section>
+
+<section class="screen" id="scrTryon">
+  <main>
+    <div class="card">
+      <div class="eyebrow">Шаг 3</div>
+      <h2 class="serif">Примерка</h2>
+      <p class="lede">Нажмите на вещь ниже, чтобы надеть или снять её с манекена. Это плоское наложение поверх фигуры, а не честная 3D-драпировка ткани — упрощение для прототипа.</p>
+      <div id="avatarWrap2"><div class="avatar-empty">Сначала постройте манекен на вкладке «Аватар»</div></div>
+      <div class="tryon-rail" id="tryonRail"></div>
+    </div>
+  </main>
+</section>
+
+</div>
+
+<nav class="tabbar">
+  <button class="on" data-scr="Avatar"><span class="ic">🧍</span>Аватар</button>
+  <button data-scr="Wardrobe"><span class="ic">👕</span>Гардероб</button>
+  <button data-scr="Tryon"><span class="ic">✨</span>Примерка</button>
+</nav>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const $=id=>document.getElementById(id);
+
+/* ---------- навигация ---------- */
+const screens=['Avatar','Wardrobe','Tryon'];
+document.querySelectorAll('nav.tabbar button').forEach(btn=>{
+  btn.onclick=()=>{
+    screens.forEach(s=>$('scr'+s).classList.toggle('on', s===btn.dataset.scr));
+    document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('on', b===btn));
+    if(btn.dataset.scr==='Tryon'){ mountAvatarInto('avatarWrap2'); renderTryonRail(); }
+    if(btn.dataset.scr==='Avatar'){ mountAvatarInto('avatarWrap'); }
+  };
+});
+
+/* ---------- фото-слоты аватара ---------- */
+const photoData={front:null,back:null,left:null,right:null};
+function wireAvatarSlot(slotEl){
+  const slotName=slotEl.dataset.slot;
+  const inp=slotEl.querySelector('input');
+  inp.addEventListener('change', e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      photoData[slotName]=reader.result;
+      slotEl.innerHTML='<img src="'+reader.result+'">';
+      const inp2=document.createElement('input'); inp2.type='file'; inp2.accept='image/*';
+      slotEl.appendChild(inp2);
+      wireAvatarSlot(slotEl);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+document.querySelectorAll('#scrAvatar .photo-slot').forEach(wireAvatarSlot);
+
+/* ---------- локальное хранилище ---------- */
+const LS_AVATAR='wd_avatar', LS_WARDROBE='wd_wardrobe';
+function loadAvatarParams(){ return JSON.parse(localStorage.getItem(LS_AVATAR)||'null'); }
+function saveAvatarParams(p){ localStorage.setItem(LS_AVATAR, JSON.stringify(p)); }
+function loadWardrobe(){ return JSON.parse(localStorage.getItem(LS_WARDROBE)||'[]'); }
+function saveWardrobe(w){ localStorage.setItem(LS_WARDROBE, JSON.stringify(w)); }
+
+const savedAvatar=loadAvatarParams();
+if(savedAvatar){ $('inHeight').value=savedAvatar.height; $('inWeight').value=savedAvatar.weight; }
+
+/* ---------- 3D манекен ---------- */
+let scene, camera, renderer, controls, mannequinGroup, torsoMesh, legsGroup, feetGroup;
+let currentMount=null, animating=false;
+const wornMeshes={};
+
+function bodyMetrics(heightCm, weightKg){
+  const scale=heightCm/170;
+  const bmi=weightKg/Math.pow(heightCm/100,2);
+  const width=Math.min(1.35, Math.max(0.78, bmi/22));
+  return {
+    scale, width,
+    legLen:0.85*scale, legR:0.11*width,
+    torsoLen:0.62*scale, torsoR:0.24*width,
+    armLen:0.6*scale, armR:0.065*width,
+    headR:0.115*Math.min(1.15,Math.max(0.9,scale))
+  };
+}
+
+function initSceneAndAnchors(M){
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0xDCEAE9);
+  camera=new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+  const amb=new THREE.AmbientLight(0xffffff, 0.65); scene.add(amb);
+  const dir=new THREE.DirectionalLight(0xffffff, 0.9); dir.position.set(2,4,3); scene.add(dir);
+
+  mannequinGroup=new THREE.Group();
+
+  legsGroup=new THREE.Group();
+  legsGroup.userData={radius:M.legR, height:M.legLen};
+  mannequinGroup.add(legsGroup);
+
+  feetGroup=new THREE.Group();
+  mannequinGroup.add(feetGroup);
+
+  torsoMesh=new THREE.Group(); // якорь для одежды — не обязательно видимый меш
+  torsoMesh.position.set(0, M.legLen+M.torsoLen/2, 0);
+  torsoMesh.userData={radius:M.torsoR, height:M.torsoLen};
+  mannequinGroup.add(torsoMesh);
+
+  scene.add(mannequinGroup);
+
+  const totalH=M.legLen+M.torsoLen+M.headR*2+0.05;
+  camera.position.set(0, totalH*0.52, totalH*1.9);
+
+  renderer=new THREE.WebGLRenderer({antialias:true, alpha:false});
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+
+  controls=new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, totalH*0.5, 0);
+  controls.enableDamping=true; controls.dampingFactor=0.08;
+  controls.enablePan=false; controls.minDistance=totalH*1.1; controls.maxDistance=totalH*3;
+  controls.update();
+  return totalH;
+}
+
+function buildMannequin(heightCm, weightKg){
+  const M=bodyMetrics(heightCm, weightKg);
+  initSceneAndAnchors(M);
+  const skin=new THREE.MeshStandardMaterial({color:0xE8C9A8, roughness:0.85});
+
+  const legGeo=new THREE.CapsuleGeometry(M.legR, M.legLen-M.legR*2, 4, 8);
+  const legL=new THREE.Mesh(legGeo, skin); legL.position.set(-0.14*M.width, M.legLen/2, 0);
+  const legR_=new THREE.Mesh(legGeo, skin); legR_.position.set(0.14*M.width, M.legLen/2, 0);
+  legsGroup.add(legL, legR_);
+
+  const feetGeo=new THREE.BoxGeometry(0.11*M.width,0.06,0.24);
+  const footL=new THREE.Mesh(feetGeo, skin); footL.position.set(-0.14*M.width,0.03,0.06);
+  const footR=new THREE.Mesh(feetGeo, skin); footR.position.set(0.14*M.width,0.03,0.06);
+  feetGroup.add(footL, footR);
+
+  const torsoGeo=new THREE.CapsuleGeometry(M.torsoR, M.torsoLen-M.torsoR*2, 4, 10);
+  torsoMesh.add(new THREE.Mesh(torsoGeo, skin));
+
+  const armGeo=new THREE.CapsuleGeometry(M.armR, M.armLen-M.armR*2, 4, 8);
+  const armL=new THREE.Mesh(armGeo, skin);
+  armL.position.set(-(M.torsoR+M.armR+0.02), M.legLen+M.torsoLen-M.armLen/2, 0); armL.rotation.z=0.06;
+  const armR2=new THREE.Mesh(armGeo, skin);
+  armR2.position.set(M.torsoR+M.armR+0.02, M.legLen+M.torsoLen-M.armLen/2, 0); armR2.rotation.z=-0.06;
+  mannequinGroup.add(armL, armR2);
+
+  const headMesh=new THREE.Mesh(new THREE.SphereGeometry(M.headR,16,16), skin);
+  headMesh.position.set(0, M.legLen+M.torsoLen+M.headR+0.02, 0);
+  mannequinGroup.add(headMesh);
+}
+
+/* ---------- вычитание фона (силуэт) ---------- */
+function extractSilhouette(dataUrl, w, h){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      const ctx=c.getContext('2d');
+      const scale=Math.max(w/img.width, h/img.height);
+      const sw=w/scale, sh=h/scale;
+      const sx=(img.width-sw)/2, sy=(img.height-sh)/2;
+      ctx.drawImage(img, sx,sy,sw,sh, 0,0,w,h);
+      const data=ctx.getImageData(0,0,w,h).data;
+      const visited=new Uint8Array(w*h);
+      const stack=[];
+      const idx=(x,y)=>y*w+x;
+      const col=i=>[data[i*4],data[i*4+1],data[i*4+2]];
+      for(let x=0;x<w;x++){ stack.push(x); stack.push((h-1)*w+x); }
+      for(let y=0;y<h;y++){ stack.push(y*w); stack.push(y*w+w-1); }
+      const THRESH=30;
+      while(stack.length){
+        const i=stack.pop();
+        if(visited[i]) continue;
+        visited[i]=1;
+        const x=i%w, y=(i-x)/w;
+        const c0=col(i);
+        const nbrs=[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
+        for(const [nx,ny] of nbrs){
+          if(nx<0||ny<0||nx>=w||ny>=h) continue;
+          const ni=idx(nx,ny);
+          if(visited[ni]) continue;
+          const cn=col(ni);
+          const d=Math.abs(c0[0]-cn[0])+Math.abs(c0[1]-cn[1])+Math.abs(c0[2]-cn[2]);
+          if(d<THRESH) stack.push(ni);
+        }
+      }
+      const mask=new Uint8Array(w*h);
+      for(let i=0;i<w*h;i++) mask[i]=visited[i]?0:1; // 1 = силуэт (не фон)
+      resolve({mask, w, h});
+    };
+    img.src=dataUrl;
+  });
+}
+
+/* ---------- вокселирование по 4 силуэтам ---------- */
+async function buildVoxelMannequin(heightCm, weightKg, photos){
+  $('voxelStatus').style.display='block';
+  $('voxelStatus').textContent='Убираем фон и строим объём — секунду…';
+
+  const MW=100, MH=200; // разрешение масок
+  const [front, back, left, right] = await Promise.all(
+    [photos.front, photos.back, photos.left, photos.right].map(p=>extractSilhouette(p, MW, MH))
+  );
+
+  const M=bodyMetrics(heightCm, weightKg);
+  const totalH=initSceneAndAnchors(M);
+
+  const bboxW=0.30*2*M.width, bboxD=0.20*2*M.width, bboxH=totalH;
+  const gridX=22, gridY=46, gridZ=16;
+  const voxW=bboxW/gridX, voxH=bboxH/gridY, voxD=bboxD/gridZ;
+
+  function sample(view, u, v){
+    if(u<0||u>1||v<0||v>1) return false;
+    const x=Math.min(view.w-1, Math.max(0, Math.floor(u*view.w)));
+    const y=Math.min(view.h-1, Math.max(0, Math.floor(v*view.h)));
+    return view.mask[y*view.w+x]===1;
+  }
+
+  const positions=[];
+  for(let ix=0; ix<gridX; ix++){
+    const wx=-bboxW/2+(ix+0.5)*voxW;
+    const uFront=(wx+bboxW/2)/bboxW;
+    const uBack=1-uFront;
+    for(let iz=0; iz<gridZ; iz++){
+      const wz=-bboxD/2+(iz+0.5)*voxD;
+      const uLeft=(wz+bboxD/2)/bboxD;
+      const uRight=1-uLeft;
+      for(let iy=0; iy<gridY; iy++){
+        const wy=(iy+0.5)*voxH;
+        const v=1-(wy/bboxH);
+        if(sample(front,uFront,v) && sample(back,uBack,v) && sample(left,uLeft,v) && sample(right,uRight,v)){
+          positions.push([wx,wy,wz]);
+        }
+      }
+    }
+  }
+
+  if(!positions.length){
+    $('voxelStatus').textContent='Не удалось выделить силуэт ни на одном фото — попробуйте более контрастный однотонный фон и полный рост в кадре.';
+    return false;
+  }
+
+  const geo=new THREE.BoxGeometry(voxW*1.08, voxH*1.08, voxD*1.08);
+  const mat=new THREE.MeshStandardMaterial({color:0xE8C9A8, roughness:0.85});
+  const inst=new THREE.InstancedMesh(geo, mat, positions.length);
+  const m=new THREE.Matrix4();
+  positions.forEach((p,i)=>{ m.setPosition(p[0],p[1],p[2]); inst.setMatrixAt(i,m); });
+  inst.instanceMatrix.needsUpdate=true;
+  mannequinGroup.add(inst);
+
+  $('voxelStatus').textContent='Готово — '+positions.length+' вокселей по вашим 4 фото.';
+  return true;
+}
+
+function mountAvatarInto(wrapId){
+  const wrap=$(wrapId);
+  if(!renderer){ wrap.innerHTML='<div class="avatar-empty">Сначала постройте манекен на вкладке «Аватар»</div>'; return; }
+  wrap.innerHTML='';
+  wrap.appendChild(renderer.domElement);
+  currentMount=wrap;
+  resizeRenderer();
+  if(!animating){ animating=true; animate(); }
+}
+function resizeRenderer(){
+  if(!currentMount || !renderer) return;
+  const w=currentMount.clientWidth, h=currentMount.clientHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resizeRenderer);
+function animate(){
+  requestAnimationFrame(animate);
+  if(controls) controls.update();
+  if(renderer && currentMount && currentMount.contains(renderer.domElement)) renderer.render(scene,camera);
+}
+
+$('buildAvatar').onclick=()=>{
+  const h=parseFloat($('inHeight').value), w=parseFloat($('inWeight').value);
+  if(!h||!w){ alert('Укажите рост и вес'); return; }
+  saveAvatarParams({height:h, weight:w});
+  Object.keys(wornMeshes).forEach(k=>delete wornMeshes[k]);
+  $('voxelStatus').style.display='none';
+  buildMannequin(h,w);
+  mountAvatarInto('avatarWrap');
+};
+$('buildAvatarVoxel').onclick=async ()=>{
+  const h=parseFloat($('inHeight').value), w=parseFloat($('inWeight').value);
+  if(!h||!w){ alert('Укажите рост и вес'); return; }
+  if(!photoData.front||!photoData.back||!photoData.left||!photoData.right){
+    alert('Нужны все 4 фото: спереди, сзади, слева, справа'); return;
+  }
+  saveAvatarParams({height:h, weight:w});
+  Object.keys(wornMeshes).forEach(k=>delete wornMeshes[k]);
+  $('buildAvatarVoxel').disabled=true; $('buildAvatarVoxel').textContent='Строим…';
+  const ok=await buildVoxelMannequin(h, w, photoData);
+  $('buildAvatarVoxel').disabled=false; $('buildAvatarVoxel').textContent='Построить по силуэту фото (эксперимент)';
+  if(ok) mountAvatarInto('avatarWrap');
+};
+if(savedAvatar){ buildMannequin(savedAvatar.height, savedAvatar.weight); mountAvatarInto('avatarWrap'); }
+
+/* ---------- гардероб ---------- */
+let currentMats=[];
+let itemPhotoDataUrl=null;
+
+function wireItemPhotoSlot(){
+  const slotEl=$('itemPhotoSlot');
+  const inp=slotEl.querySelector('input');
+  inp.addEventListener('change', e=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      itemPhotoDataUrl=reader.result;
+      slotEl.innerHTML='<img src="'+reader.result+'">';
+      const inp2=document.createElement('input'); inp2.type='file'; inp2.accept='image/*'; inp2.id='itemPhotoInput';
+      slotEl.appendChild(inp2);
+      wireItemPhotoSlot();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+wireItemPhotoSlot();
+
+function renderMatTags(){
+  $('matTags').innerHTML=currentMats.map((m,i)=>
+    `<span class="tag">${m.name} ${m.pct}%<button data-i="${i}">×</button></span>`).join('');
+  $('matTags').querySelectorAll('button').forEach(b=>{
+    b.onclick=()=>{ currentMats.splice(+b.dataset.i,1); renderMatTags(); };
+  });
+}
+$('matAdd').onclick=()=>{
+  const name=$('matName').value.trim(), pct=parseInt($('matPct').value);
+  if(!name||!pct) return;
+  currentMats.push({name,pct});
+  $('matName').value=''; $('matPct').value='';
+  renderMatTags();
+};
+
+$('itemSave').onclick=()=>{
+  const name=$('itemName').value.trim(), cat=$('itemCat').value;
+  if(!name){ alert('Введите название вещи'); return; }
+  if(!itemPhotoDataUrl){ alert('Добавьте фото вещи'); return; }
+  const wardrobe=loadWardrobe();
+  wardrobe.push({ id:'it_'+Date.now(), name, category:cat, materials:[...currentMats], photo:itemPhotoDataUrl });
+  saveWardrobe(wardrobe);
+  itemPhotoDataUrl=null; currentMats=[];
+  $('itemName').value=''; renderMatTags();
+  $('itemPhotoSlot').innerHTML='<span class="lbl">Фото вещи</span>';
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.id='itemPhotoInput';
+  $('itemPhotoSlot').appendChild(inp);
+  wireItemPhotoSlot();
+  renderWardrobeGrid();
+};
+
+const CAT_LABEL={top:'Верх',bottom:'Низ',dress:'Платье',outerwear:'Верхняя одежда',shoes:'Обувь'};
+
+function renderWardrobeGrid(){
+  const wardrobe=loadWardrobe();
+  if(!wardrobe.length){ $('wardrobeGrid').innerHTML='<div class="empty">Гардероб пуст — добавьте первую вещь выше.</div>'; return; }
+  $('wardrobeGrid').innerHTML=wardrobe.map(it=>`
+    <div class="item-tile">
+      <button class="del" data-id="${it.id}">×</button>
+      <img src="${it.photo}">
+      <div class="nm">${it.name}</div>
+      <div class="cat">${CAT_LABEL[it.category]}</div>
+    </div>`).join('');
+  $('wardrobeGrid').querySelectorAll('.del').forEach(b=>{
+    b.onclick=()=>{
+      const w=loadWardrobe().filter(x=>x.id!==b.dataset.id);
+      saveWardrobe(w); renderWardrobeGrid();
+    };
+  });
+}
+renderWardrobeGrid();
+
+/* ---------- примерка ---------- */
+function wearItem(item){
+  if(!torsoMesh){ alert('Сначала постройте манекен на вкладке «Аватар»'); return; }
+  const slot = item.category==='dress' ? 'dress' : item.category;
+  if(wornMeshes[slot]){ wornMeshes[slot].parent.remove(wornMeshes[slot]); delete wornMeshes[slot]; }
+  if(slot==='dress'){ ['top','bottom'].forEach(s=>{ if(wornMeshes[s]){ wornMeshes[s].parent.remove(wornMeshes[s]); delete wornMeshes[s]; } }); }
+  if(slot==='top'||slot==='bottom'){ if(wornMeshes.dress){ wornMeshes.dress.parent.remove(wornMeshes.dress); delete wornMeshes.dress; } }
+
+  const tex=new THREE.TextureLoader().load(item.photo);
+  const mat=new THREE.MeshBasicMaterial({map:tex, transparent:true, side:THREE.DoubleSide});
+  let geo, parent, pos;
+  const tr=torsoMesh.userData.radius, th=torsoMesh.userData.height;
+  const lr=legsGroup.userData.radius, lh=legsGroup.userData.height;
+  switch(slot){
+    case 'top': geo=new THREE.PlaneGeometry(tr*2.3, th*0.95); parent=torsoMesh; pos=[0,0,tr+0.015]; break;
+    case 'outerwear': geo=new THREE.PlaneGeometry(tr*2.5, th*1.0); parent=torsoMesh; pos=[0,0,tr+0.03]; break;
+    case 'bottom': geo=new THREE.PlaneGeometry(lr*3.4, lh*0.85); parent=legsGroup; pos=[0,lh*0.42,lr+0.015]; break;
+    case 'shoes': geo=new THREE.PlaneGeometry(0.3,0.2); parent=feetGroup; pos=[0,0.03,0.16]; break;
+    case 'dress': geo=new THREE.PlaneGeometry(tr*2.3, th+lh*0.7); parent=torsoMesh; pos=[0,-lh*0.32,tr+0.015]; break;
+  }
+  const mesh=new THREE.Mesh(geo,mat); mesh.position.set(...pos);
+  parent.add(mesh); wornMeshes[slot]=mesh;
+}
+function unwearSlot(slot){
+  if(wornMeshes[slot]){ wornMeshes[slot].parent.remove(wornMeshes[slot]); delete wornMeshes[slot]; }
+}
+
+function renderTryonRail(){
+  const wardrobe=loadWardrobe();
+  if(!wardrobe.length){ $('tryonRail').innerHTML='<div class="empty">Сначала добавьте вещи в гардероб.</div>'; return; }
+  $('tryonRail').innerHTML=wardrobe.map(it=>{
+    const slot = it.category==='dress' ? 'dress' : it.category;
+    const isWorn = wornMeshes[slot] && wornMeshes[slot].userData.itemId===it.id;
+    return `<div class="item-tile${isWorn?' worn':''}" data-id="${it.id}"><img src="${it.photo}"><div class="nm">${it.name}</div></div>`;
+  }).join('');
+  $('tryonRail').querySelectorAll('.item-tile').forEach(tile=>{
+    tile.onclick=()=>{
+      const wardrobe=loadWardrobe();
+      const item=wardrobe.find(x=>x.id===tile.dataset.id);
+      const slot = item.category==='dress' ? 'dress' : item.category;
+      if(wornMeshes[slot] && wornMeshes[slot].userData.itemId===item.id){
+        unwearSlot(slot); tile.classList.remove('worn');
+      } else {
+        wearItem(item);
+        wornMeshes[slot].userData.itemId=item.id;
+        document.querySelectorAll('.tryon-rail .item-tile').forEach(t=>t.classList.remove('worn'));
+        tile.classList.add('worn');
+      }
+    };
+  });
+}
+</script>
+</body>
+</html>
