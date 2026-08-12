@@ -385,7 +385,24 @@ function extractSilhouette(dataUrl, w, h){
       }
       const mask=new Uint8Array(w*h);
       for(let i=0;i<w*h;i++) mask[i]=visited[i]?0:1; // 1 = силуэт (не фон)
-      resolve({mask, w, h});
+
+      // устойчивая рамка тела: по каждой строке берём её собственные левый/правый край,
+      // затем 10й/90й процентиль ЭТИХ построчных значений — так одна широкая строка
+      // (например, тень на полу) не тянет границы на весь кадр, как это было бы при
+      // обычном проценте по всем пикселям сразу
+      const rowMin=[], rowMax=[]; let firstY=-1, lastY=-1;
+      for(let y=0;y<h;y++){
+        let mn=-1, mx=-1, cnt=0;
+        for(let x=0;x<w;x++){ if(mask[y*w+x]===1){ if(mn<0) mn=x; mx=x; cnt++; } }
+        if(cnt>=3){ rowMin.push(mn); rowMax.push(mx); if(firstY<0) firstY=y; lastY=y; }
+      }
+      let bbox={minX:0,maxX:1,minY:0,maxY:1};
+      if(rowMin.length){
+        const sMin=[...rowMin].sort((a,b)=>a-b), sMax=[...rowMax].sort((a,b)=>a-b);
+        const pct=(arr,p)=>arr[Math.min(arr.length-1,Math.max(0,Math.floor(p*arr.length)))];
+        bbox={ minX:pct(sMin,0.10)/w, maxX:pct(sMax,0.90)/w, minY:(firstY<0?0:firstY)/h, maxY:(lastY<0?h:lastY)/h };
+      }
+      resolve({mask, w, h, bbox});
     };
     img.src=dataUrl;
   });
@@ -427,8 +444,11 @@ async function buildVoxelMannequin(heightCm, weightKg, photos){
 
   function sample(view, u, v){
     if(u<0||u>1||v<0||v>1) return false;
-    const x=Math.min(view.w-1, Math.max(0, Math.floor(u*view.w)));
-    const y=Math.min(view.h-1, Math.max(0, Math.floor(v*view.h)));
+    const b=view.bbox;
+    const su=b.minX+u*(b.maxX-b.minX);
+    const sv=b.minY+v*(b.maxY-b.minY);
+    const x=Math.min(view.w-1, Math.max(0, Math.floor(su*view.w)));
+    const y=Math.min(view.h-1, Math.max(0, Math.floor(sv*view.h)));
     return view.mask[y*view.w+x]===1;
   }
 
